@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Arduino Interpreter Playground v1.4.0 - Complete Platform Emulation & Preprocessor Architecture -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AST Interpreter - Development</title>
+    <style>
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background-color: #232323;
+            color: #000000;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.4;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #000000;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: #006468;
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 100px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            background: #c0c0c0;
+            color: #808080;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn.stop {
+            background: #E34C00;
+        }
+        
+        .btn.pause {
+            background: #F1B500;
+        }
+        
+        .status-bar {
+            background: #006468;
+            border: 1px solid #002325;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            color: #ffffff;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #666;
+        }
+        
+        .status-indicator.idle { background: #666; }
+        .status-indicator.running { background: #00ff88; animation: pulse 1s infinite; }
+        .status-indicator.paused { background: #F1B500; }
+        .status-indicator.error { background: #E34C00; }
+        .status-indicator.complete { background: #17A1A5; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            height: calc(100vh - 300px);
+            min-height: 500px;
+        }
+        
+        .panel {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border: 1px solid #c0c0c0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            background: #17A1A5;
+            padding: 12px;
+            border-bottom: 1px solid #005B5B;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-title {
+            color: #002325;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .panel-controls {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .panel-btn {
+            background: #006468;
+            color: #ffffff;
+            border: 1px solid #002325;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+        
+        .panel-btn:hover {
+            background: #00979C;
+        }
+        
+        .panel-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            min-height: 0;
+        }
+        
+        .editor, .output {
+            flex: 1;
+            background-color: #ffffff;
+            border: none;
+            padding: 15px;
+            font-family: inherit;
+            font-size: 13px;
+            color: #000000;
+            resize: none;
+            outline: none;
+            overflow-y: auto;
+            overflow-x: hidden;
+            line-height: 1.5;
+            white-space: pre;
+            min-height: 0;
+        }
+        
+        .editor {
+            background-color: #ffffff;
+        }
+        
+        .editor:focus {
+            background-color: #e2e2e2;
+        }
+        
+        .output {
+            background-color: #eeeeee;
+            color: #000000;
+        }
+        
+        .commands-panel .output {
+            font-size: 12px;
+            overflow-y: auto !important;
+            scroll-behavior: smooth;
+            flex: 1;
+            min-height: 0;
+        }
+        
+        .line-counter {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            background: rgba(0, 0, 0, 0.1);
+            color: #888;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            pointer-events: none;
+        }
+        
+        .examples {
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        .example-btn {
+            background-color: #006468;
+            color: #ffffff;
+            border: 1px solid #002325;
+            padding: 6px 12px;
+            margin: 3px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s ease;
+        }
+        
+        .example-btn:hover {
+            background-color: #00979C;
+        }
+
+        /* Line number styling for code editor */
+        .editor-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .editor-wrapper {
+            position: relative;
+            flex: 1;
+            display: flex;
+        }
+        
+        .line-numbers {
+            background-color: #f0f0f0;
+            color: #808080;
+            border: none;
+            border-radius: 0;
+            padding: 15px 8px 15px 15px;
+            font-family: inherit;
+            font-size: 13px;
+            line-height: 1.5;
+            width: 40px;
+            text-align: right;
+            white-space: pre;
+            overflow: hidden;
+            user-select: none;
+            resize: none;
+            outline: none;
+        }
+        
+        .code-input-with-lines {
+            border-radius: 0 8px 8px 0;
+            border-left: none;
+            flex: 1;
+        }
+        
+        /* Command styling */
+        .command {
+            margin: 2px 0;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        
+        .command.PIN_MODE { background: rgba(114, 142, 0, 0.1); border-left: 3px solid #728E00; }
+        .command.DIGITAL_WRITE { background: rgba(211, 84, 0, 0.1); border-left: 3px solid #D35400; }
+        .command.ANALOG_WRITE { background: rgba(211, 84, 0, 0.1); border-left: 3px solid #D35400; }
+        .command.DIGITAL_READ { background: rgba(0, 151, 156, 0.1); border-left: 3px solid #00979C; }
+        .command.ANALOG_READ { background: rgba(0, 151, 156, 0.1); border-left: 3px solid #00979C; }
+        .command.DELAY { background: rgba(211, 84, 0, 0.1); border-left: 3px solid #D35400; }
+        .command.SETUP_START { background: rgba(114, 142, 0, 0.1); border-left: 3px solid #728E00; }
+        .command.SETUP_END { background: rgba(114, 142, 0, 0.1); border-left: 3px solid #728E00; }
+        .command.LOOP_START { background: rgba(114, 142, 0, 0.1); border-left: 3px solid #728E00; }
+        .command.LOOP_END { background: rgba(114, 142, 0, 0.1); border-left: 3px solid #728E00; }
+        .command.FUNCTION_CALL { background: rgba(211, 84, 0, 0.1); border-left: 3px solid #D35400; }
+        .command.CONDITION_EVAL { background: rgba(114, 142, 0, 0.1); border-left: 3px solid #728E00; }
+        .command.VERSION_INFO { background: rgba(0, 151, 156, 0.1); border-left: 3px solid #00979C; font-weight: bold; }
+        .command.ERROR { background: rgba(166, 23, 23, 0.1); border-left: 3px solid #A61717; }
+        .command.WARNING { background: rgba(241, 181, 0, 0.1); border-left: 3px solid #F1B500; }
+        
+        .timestamp {
+            color: #95A5A6;
+            font-size: 9px;
+        }
+
+        /* ===== TOAST NOTIFICATIONS ===== */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #17A1A5;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            min-width: 300px;
+            animation: slideIn 0.3s ease;
+            border-left: 4px solid #002325;
+            color: #002325;
+        }
+
+        .toast.error {
+            background: #E34C00;
+            border-left-color: #A61717;
+            color: #FFFFFF;
+        }
+
+        .toast.success {
+            background: #17A1A5;
+            border-left-color: #002325;
+            color: #002325;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .panels {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span>Status: <span id="statusText">IDLE</span></span>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator" id="wsConnectionIndicator"></div>
+                <span id="wsConnectionStatus">DISCONNECTED</span>
+            </div>
+            <div class="status-item">
+                <span>Commands: <span id="commandCount">0</span></span>
+            </div>
+            <div class="status-item">
+                <span>Loop Iterations: <span id="loopCount">0</span></span>
+            </div>
+            <div class="status-item">
+                <span>Variables: <span id="varCount">0</span></span>
+            </div>
+        </div>
+        
+        <!-- Combined Controls Row -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 20px; flex-wrap: wrap;">
+            <!-- Test Selection Controls (Left) -->
+            <div class="test-selection-controls">
+                        <div class="controls" style="text-align: left;">
+                            <select id="testSelect" onchange="loadSelectedTest()" style="padding: 10px 8px; border-radius: 4px; background: #2a2a3e; color: #e0e0e0; border: 1px solid #00f0ff; min-width: 200px;"><option value="0">blink.ino</option><option value="1">fade.ino</option><option value="2">rainbow.ino</option><option value="3">rgb.ino</option></select><button class="btn" id="newBtn" onclick="newSketch()">🆕 New</button><button class="btn" id="parseBtn" onclick="parseCode()">✅ Verify</button>
+                            <button class="btn" id="uploadASTBtn" onclick="uploadCurrentAST()" style="margin-left: 10px;">➡️ Upload</button>
+                            <button class="btn" id="saveASTBtn" onclick="downloadAST()" style="margin-left: 10px;">📄 Save</button>
+                        </div>
+                     </div>
+
+            <!-- Execution Controls (Right) -->
+            <div class="controls" style="text-align: right;">
+                <button class="btn" id="startBtn" onclick="startExecution()">▶️ Start</button>
+                <button class="btn pause" id="pauseBtn" onclick="pauseExecution()" disabled="">⏸️ Pause</button>
+                <button class="btn" id="stepBtn" onclick="stepExecution()" disabled="">↩️ Step</button>
+                <button class="btn stop" id="stopBtn" onclick="stopExecution()" disabled="">⏹️ Stop</button>
+                <button class="btn" id="resetBtn" onclick="resetInterpreter()">🔃 Reset</button>
+            </div>
+        </div>        <!-- Upload Progress -->
+        <div id="uploadProgress" style="display: none; margin-top: 10px;">
+            <div style="background: rgba(255, 255, 255, 0.1); border-radius: 4px; overflow: hidden;">
+                <div id="uploadProgressBar" style="height: 4px; background: linear-gradient(90deg, var(--primary-color), var(--success-color)); width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+            <div id="uploadStatus" style="text-align: center; margin-top: 5px; font-size: 14px; color: var(--text-secondary);"></div>
+        </div>
+
+
+        
+        <div class="panels">
+            <!-- Code Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title" id="arduinoCodePanelTitle">📝 Arduino Code</div>
+                    <div class="panel-controls">
+                        <button class="panel-btn" onclick="saveCode()">Save</button>
+                        <button class="panel-btn" onclick="loadCode()">Load</button>
+                        <button class="panel-btn" onclick="clearCode()">Clear</button>
+                    </div>
+                </div>
+                <div class="panel-content editor-container">
+                    <input type="file" id="fileLoader" accept=".ino" style="display: none;" onchange="handleFileLoad(event)"/>
+                    <div class="editor-wrapper">
+                        <textarea class="line-numbers" id="lineNumbers" readonly>1</textarea>
+                        <textarea class="editor code-input-with-lines" id="codeEditor" placeholder="Enter your Arduino code here...">void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(1000);
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(1000);
+}</textarea>
+                    </div>
+                    <div class="line-counter" id="codeLineCounter">8 lines</div>
+                </div>
+            </div>
+            
+            
+            <!-- Commands Panel -->
+            <div class="panel commands-panel">
+                <div class="panel-header">
+                    <div class="panel-title">⚡ Generated Commands</div>
+                    <div class="panel-controls">
+                        <button class="panel-btn" onclick="clearCommands()">Clear</button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="output" id="commandOutput" style="overflow-y: auto; height: 100%;">Commands will appear here during interpretation...</div>
+                    <div class="line-counter" id="commandLineCounter">0 commands</div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- Load CompactAST first (required by ArduinoParser in browser) -->
+    <script src="../libs/CompactAST/src/CompactAST.js"></script>
+    <!-- Load ArduinoParser (includes CompactAST functionality) -->
+    <script src="../libs/ArduinoParser/src/ArduinoParser.js"></script>
+    <!-- Note: ArduinoParser includes CompactAST integration - no need to load CompactAST separately -->
+    <!-- Load ASTInterpreter -->
+    <script src="../src/javascript/ASTInterpreter.js"></script>
+    <!-- Load test files directly -->
+    <script src="../tests/examples.js"></script>
+    <script>
+        // Capture examples.js examplesFiles immediately
+        const examplesTestFiles = examplesFiles.slice();
+        conditionalLog(true, `Loaded ${examplesTestFiles.length} Arduino examples`);
+    </script>
+
+    <script>
+        // Capture neopixel.js neopixelFiles immediately
+
+        
+        // Global state
+        let currentAST = null;
+        let interpreter = null;
+        let prettyFormat = true;
+        let platformEmulation = null;
+        let preprocessor = null;
+        let currentCompactAST = null;
+        let currentTestName = null;
+        let parseHadErrors = false;
+        let ws = null;
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                updateWSConnectionStatus(true);
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'status_update') {
+                    // Can be used to get status from device
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateWSConnectionStatus(false);
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                updateWSConnectionStatus(false);
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function updateWSConnectionStatus(connected) {
+            const indicator = document.getElementById('wsConnectionIndicator');
+            const text = document.getElementById('wsConnectionStatus');
+
+            if (connected) {
+                indicator.className = 'status-indicator running';
+                text.textContent = 'CONNECTED';
+            } else {
+                indicator.className = 'status-indicator error';
+                text.textContent = 'DISCONNECTED';
+            }
+        }
+
+        function sendWebSocketMessage(message) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(message));
+            }
+        }
+
+
+        
+        function generateSketchName() {
+            const now = new Date();
+            const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+            const month = months[now.getMonth()];
+            const day = now.getDate();
+            const letter = String.fromCharCode(97 + (now.getHours() % 26)); // Simple letter based on hour
+            return `sketch_${month}${day}${letter}.ino`;
+        }
+
+        function newSketch() {
+            const defaultName = generateSketchName();
+            const sketchName = prompt("Enter a name for the new sketch:", defaultName);
+
+            if (sketchName) {
+                currentTestName = sketchName;
+                updateSketchName();
+                const codeEditor = document.getElementById('codeEditor');
+                codeEditor.value = `void setup() {\n  // put your setup code here, to run once:\n\n}\n\nvoid loop() {\n  // put your main code here, to run repeatedly:\n\n}`;
+                updateLineCounters();
+                updateLineNumbers();
+                clearCommands();
+                resetInterpreter();
+                showToast(`New sketch created: ${sketchName}`, 'success');
+            }
+        }
+
+        function updateSketchName() {
+            const panelTitle = document.getElementById('arduinoCodePanelTitle');
+            if (panelTitle) {
+                panelTitle.innerHTML = `📝 Arduino Code - ${currentTestName}`;
+            }
+        }
+
+        // Initialize platform and preprocessor systems
+        function loadTestFiles() {
+            try {
+                // Initialize platform emulation system (ESP32 Nano default)
+                platformEmulation = new PlatformEmulation('ESP32_NANO');
+                conditionalLog(true, `🎯 Platform initialized: ${platformEmulation.currentPlatform.displayName}`);
+                
+                // Initialize preprocessor with platform context
+                preprocessor = new ArduinoPreprocessor({
+                    platformContext: platformEmulation
+                });
+                conditionalLog(true, '🔧 Preprocessor initialized with platform context');
+                
+            } catch (error) {
+                console.error('Failed to initialize platform/preprocessor:', error);
+            }
+            
+            // Files are already loaded, just initialize dropdowns
+            initializeTestSelectors();
+        }
+        
+        // Initialize dropdown selectors
+        function initializeTestSelectors() {
+            updateTestOptions();
+        }
+        
+        // Update test options based on selected category
+        function updateTestOptions() {
+            const testSelect = document.getElementById('testSelect');
+            
+            // Clear existing options
+            testSelect.innerHTML = '';
+            
+            // Populate dropdown with tests
+            examplesTestFiles.forEach((test, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = test.name;
+                testSelect.appendChild(option);
+            });
+
+            // Default to the first entry and load it
+            if (examplesTestFiles.length > 0) {
+                testSelect.value = 0;
+                loadSelectedTest();
+            }
+        }
+        
+        // Load the selected test
+        function loadSelectedTest() {
+            const testSelect = document.getElementById('testSelect');
+            const testIndex = parseInt(testSelect.value);
+            
+            if (isNaN(testIndex)) {
+                return;
+            }
+            
+            const selectedTest = examplesTestFiles[testIndex];
+            if (selectedTest) {
+                document.getElementById('codeEditor').value = selectedTest.content;
+                currentTestName = selectedTest.name;
+                updateSketchName();
+                updateLineCounters();
+                updateLineNumbers();
+                clearCommands();
+                resetInterpreter();
+                conditionalLog(true, `Loaded test: ${selectedTest.name}`);
+            }
+        }
+        
+
+        
+        // Remove the old hardcoded examples object - replaced by dynamic loading
+        
+        // Placeholder for legacy compatibility - actual test loading is now dynamic
+        
+        // Initialize interface
+        function updateLineCounters() {
+            const codeLines = document.getElementById('codeEditor').value.split('\n').length;
+            document.getElementById('codeLineCounter').textContent = `${codeLines} lines`;
+        }
+        
+        function updateStatus(state, commandCount = 0, loopCount = 0, varCount = 0) {
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+            
+            indicator.className = `status-indicator ${state.toLowerCase()}`;
+            text.textContent = state;
+            
+            document.getElementById('commandCount').textContent = commandCount;
+            document.getElementById('loopCount').textContent = loopCount;
+            document.getElementById('varCount').textContent = varCount;
+        }
+        
+        function updateButtons(state) {
+            const startBtn = document.getElementById('startBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const stepBtn = document.getElementById('stepBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            switch (state) {
+                case 'IDLE':
+                    startBtn.textContent = '▶️ Start';
+                    startBtn.disabled = false;
+                    startBtn.onclick = () => startExecution();
+                    pauseBtn.disabled = true;
+                    stepBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    break;
+                case 'RUNNING':
+                    startBtn.disabled = true;
+                    pauseBtn.disabled = false;
+                    stepBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    break;
+                case 'PAUSED':
+                    startBtn.textContent = '▶️ Resume';
+                    startBtn.disabled = false;
+                    startBtn.onclick = () => { 
+                        if (interpreter) {
+                            const success = interpreter.resume();
+                            conditionalLog(true, 'Resume result:', success, 'State:', interpreter.getState());
+                        }
+                    };
+                    pauseBtn.disabled = true;
+                    stepBtn.disabled = false;
+                    stopBtn.disabled = false;
+                    break;
+                case 'ERROR':
+                case 'COMPLETE':
+                    startBtn.textContent = '▶️ Start';
+                    startBtn.disabled = false;
+                    startBtn.onclick = () => startExecution();
+                    pauseBtn.disabled = true;
+                    stepBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    break;
+            }
+        }
+        
+        // Main functions
+        async function parseCode() {
+            clearCommands();
+            const code = document.getElementById('codeEditor').value.trim();
+            
+            if (!code) {
+                currentAST = null;
+                currentCompactAST = null;
+                parseHadErrors = false;
+                updateSaveButtonState();
+                updateUploadButtonState();
+                return false; // Indicate failure
+            }
+            
+            try {
+                // Step 1: Preprocess code
+                const preprocessResult = preprocessor.preprocess(code);
+                
+                // Step 2: Parse preprocessed code to AST
+                currentAST = parse(preprocessResult.processedCode || preprocessResult, { verbose: false });
+
+                // Step 3: Export CompactAST
+                if (typeof window.exportCompactAST === 'function') {
+                    currentCompactAST = window.exportCompactAST(currentAST);
+                } else {
+                    currentCompactAST = null;
+                }
+
+                // Step 4: Check for errors
+                const errors = getParseErrors(currentAST);
+                parseHadErrors = errors.length > 0;
+
+                if (parseHadErrors) {
+                    currentCompactAST = null;
+                    const errorMessages = errors.join('\n');
+                    alert(`Parsing failed with the following errors:\n\n${errorMessages}`);
+                    // also display in the command output
+                    for (const error of errors) {
+                        displayCommand({ type: 'ERROR', message: error, timestamp: Date.now() });
+                    }
+                }
+
+                // Step 5: Update button states
+                updateSaveButtonState();
+                updateUploadButtonState();
+
+                if (parseHadErrors) {
+                    showToast('Parsing failed with errors.', 'error');
+                    return false; // Indicate failure
+                } else {
+                    showToast('Code parsed successfully!', 'success');
+                    return true; // Indicate success
+                }
+
+            } catch (error) {
+                const errorMessage = `Parse Error: ${error.message}`;
+                displayCommand({ type: 'ERROR', message: errorMessage, timestamp: Date.now() });
+                alert(errorMessage);
+                currentAST = null;
+                currentCompactAST = null;
+                parseHadErrors = true;
+                updateSaveButtonState();
+                updateUploadButtonState();
+                return false; // Indicate failure
+            }
+        }
+
+        async function startExecution() {
+            if (await parseCode()) {
+                await interpretAST();
+            }
+        }
+        
+        async function interpretAST() {
+            if (!currentAST) {
+                alert('Please parse code first');
+                return;
+            }
+            
+            // Create new interpreter
+            interpreter = new ASTInterpreter(currentAST, {
+                verbose: true
+                // No loop limit - runs continuously like real Arduino
+            });
+            
+            // Set up event handlers
+            interpreter.onCommand = (command) => {
+                displayCommand(command);
+                
+                // Handle request-response pattern for external data functions
+                switch (command.type) {
+                    case 'ANALOG_READ_REQUEST':
+                        // Simulate realistic sensor data
+                        const analogValue = Math.floor(Math.random() * 1024);
+                        // Add small delay to prevent race condition with async Promise setup
+                        setTimeout(() => {
+                            interpreter.resumeWithValue(command.requestId, analogValue);
+                        }, 1);
+                        break;
+                        
+                    case 'DIGITAL_READ_REQUEST':  
+                        const digitalState = Math.random() > 0.5 ? 1 : 0;
+                        // Add small delay to prevent race condition with async Promise setup
+                        setTimeout(() => {
+                            interpreter.resumeWithValue(command.requestId, digitalState);
+                        }, 1);
+                        break;
+                        
+                    case 'MILLIS_REQUEST':
+                        // Add small delay to prevent race condition with async Promise setup
+                        setTimeout(() => {
+                            interpreter.resumeWithValue(command.requestId, Date.now());
+                        }, 1);
+                        break;
+                        
+                    case 'MICROS_REQUEST':
+                        // Add small delay to prevent race condition with async Promise setup
+                        setTimeout(() => {
+                            interpreter.resumeWithValue(command.requestId, Date.now() * 1000);
+                        }, 1);
+                        break;
+                        
+                    case 'LIBRARY_METHOD_REQUEST':
+                        // Handle library method requests (like numPixels)
+                        let responseValue = 0;
+                        switch (command.method) {
+                            case 'numPixels': responseValue = 60; break;
+                            case 'getBrightness': responseValue = 255; break;
+                            case 'getPixelColor': responseValue = 0; break;
+                            case 'canShow': responseValue = true; break;
+                            default: responseValue = 0; break;
+                        }
+                        // Add small delay to prevent race condition with async Promise setup
+                        setTimeout(() => {
+                            interpreter.resumeWithValue(command.requestId, responseValue);
+                        }, 1);
+                        break;
+                }
+                
+                updateStatus(
+                    interpreter.getState(),
+                    interpreter.getCommandHistory().length,
+                    interpreter.loopIterations,
+                    Object.keys(interpreter.getVariables()).length
+                );
+            };
+            
+            interpreter.onStateChange = (newState, oldState) => {
+                conditionalLog(true, `State change: ${oldState} → ${newState}`);
+                updateStatus(newState);
+                updateButtons(newState);
+            };
+            
+            interpreter.onError = (error) => {
+                displayCommand(error);
+                console.error('Interpreter error:', error);
+            };
+            
+            // Start interpretation - the state machine will handle external data requests
+            clearCommands();
+            interpreter.start();
+        }
+        
+        function pauseExecution() {
+            if (interpreter) {
+                const success = interpreter.pause();
+                conditionalLog(true, 'Pause result:', success, 'State:', interpreter.getState());
+            }
+        }
+        
+        function stepExecution() {
+            if (interpreter) {
+                const success = interpreter.step();
+                conditionalLog(true, 'Step result:', success, 'State:', interpreter.getState());
+            }
+        }
+        
+        function stopExecution() {
+            if (interpreter) {
+                const success = interpreter.stop();
+                conditionalLog(true, 'Stop result:', success, 'State:', interpreter.getState());
+            }
+        }
+        
+        function resetInterpreter() {
+            if (interpreter) {
+                interpreter.reset();
+            }
+            clearCommands();
+            updateStatus('IDLE', 0, 0, 0);
+            updateButtons('IDLE');
+            currentCompactAST = null;
+            parseHadErrors = false;
+            updateSaveButtonState();
+            updateUploadButtonState();
+        }
+
+        // Download CompactAST binary as .ast file
+        async function downloadAST() {
+            if (!currentCompactAST) {
+                const success = await parseCode();
+                if (!success) {
+                    alert('Parsing failed. Cannot save AST.');
+                    return;
+                }
+            }
+
+            if (parseHadErrors) {
+                const proceed = confirm('The AST contains parsing errors. Do you want to save it anyway?');
+                if (!proceed) {
+                    return;
+                }
+            }
+
+            try {
+                // Generate filename
+                const filename = getASTFilename();
+
+                // Create Blob from ArrayBuffer
+                const blob = new Blob([currentCompactAST], { type: 'application/octet-stream' });
+
+                // Create download link
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+
+                // Trigger download
+                a.click();
+
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+
+                console.log(`Downloaded ${filename} (${currentCompactAST.byteLength} bytes)`);
+
+            } catch (error) {
+                console.error('Failed to download AST:', error);
+                alert('Failed to download AST file: ' + error.message);
+            }
+        }
+
+        // Generate filename for AST download
+        function getASTFilename() {
+            if (currentTestName) {
+                // Use test name if available
+                let filename = currentTestName;
+                if (filename.endsWith('.ino')) {
+                    filename = filename.slice(0, -4);
+                }
+
+                // Sanitize test name: remove special characters, replace spaces with underscores
+                const sanitized = filename
+                    .replace(/[^a-zA-Z0-9_\-]/g, '_')
+                    .replace(/_{2,}/g, '_')
+                    .replace(/^_ + | _ + $/g, '');
+
+                return sanitized + '.ast';
+            } else {
+                // Use timestamp for manual code
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+
+                return `sketch_${year}${month}${day}_${hours}${minutes}${seconds}.ast`;
+            }
+        }
+
+        // Update Save AST button state and display
+        function updateSaveButtonState() {
+            // Always enabled
+        }
+
+        // Update Upload AST button state and display
+        function updateUploadButtonState() {
+            // Always enabled
+        }
+
+        function containsErrors(node) {
+            if (!node || typeof node !== 'object') return false;
+
+            if (node.type === 'ErrorNode') return true;
+
+            // Check children array
+            if (node.children && Array.isArray(node.children)) {
+                for (const child of node.children) {
+                    if (containsErrors(child)) return true;
+                }
+            }
+
+            // Check all object properties
+            for (const key in node) {
+                if (typeof node[key] === 'object' && node[key] !== null) {
+                    if (containsErrors(node[key])) return true;
+                }
+            }
+
+            return false;
+        }
+
+        function getParseErrors(node) {
+            let errors = [];
+            if (!node || typeof node !== 'object') return errors;
+
+            if (node.type === 'ErrorNode') {
+                errors.push(JSON.stringify(node));
+            }
+
+            // Check children array
+            if (node.children && Array.isArray(node.children)) {
+                for (const child of node.children) {
+                    errors = errors.concat(getParseErrors(child));
+                }
+            }
+
+            // Check all object properties
+            for (const key in node) {
+                if (typeof node[key] === 'object' && node[key] !== null) {
+                    errors = errors.concat(getParseErrors(node[key]));
+                }
+            }
+
+            return errors;
+        }
+
+        // ===== FILE UPLOAD HANDLING =====
+        async function uploadCurrentAST() {
+            if (!currentCompactAST) {
+                const success = await parseCode();
+                if (!success) {
+                    alert('Parsing failed. Cannot upload AST.');
+                    return;
+                }
+            }
+
+            if (parseHadErrors) {
+                const proceed = confirm('The AST contains parsing errors. Do you want to upload it anyway?');
+                if (!proceed) {
+                    return;
+                }
+            }
+
+            const blob = new Blob([currentCompactAST], { type: 'application/octet-stream' });
+            const file = new File([blob], getASTFilename(), { type: 'application/octet-stream' });
+            uploadFile(file);
+        }
+
+        async function uploadFile(file) {
+            // Show progress
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('uploadProgressBar');
+            const statusText = document.getElementById('uploadStatus');
+
+            progressDiv.style.display = 'block';
+            progressBar.style.width = '0%';
+            statusText.textContent = `Uploading ${file.name}...`;
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // Simulate progress
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 10;
+                    if (progress <= 90) {
+                        progressBar.style.width = `${progress}%`;
+                    }
+                }, 100);
+
+                // Upload file
+                const response = await fetch('/api/files/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusText.textContent = `✓ Upload complete: ${file.name}`;
+                    statusText.style.color = 'var(--success-color)';
+                    showToast(`Uploaded: ${file.name}`, 'success');
+
+                    // Reload file list after short delay
+                    setTimeout(() => {
+                        progressDiv.style.display = 'none';
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Upload failed');
+                }
+            } catch (error) {
+                progressBar.style.width = '100%';
+                progressBar.style.background = 'var(--danger-color)';
+                statusText.textContent = `✗ Upload failed: ${error.message}`;
+                statusText.style.color = 'var(--danger-color)';
+                showToast(`Upload failed: ${error.message}`, 'error');
+
+                setTimeout(() => {
+                    progressDiv.style.display = 'none';
+                    progressBar.style.background = 'linear-gradient(90deg, var(--primary-color), var(--success-color))';
+                }, 3000);
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Helper function to convert actual control characters back to escape sequences for display
+        function escapeForDisplay(str) {
+            if (!str) return str;
+            return str
+                .replace(/\n/g, '\\n')   // Actual newline → literal \n
+                .replace(/\t/g, '\\t')   // Actual tab → literal \t
+                .replace(/\r/g, '\\r');  // Actual carriage return → literal \r
+        }
+
+                // Display functions - completely simple, no scroll management
+
+                function displayCommand(command) {
+
+                    // Only filter out truly invalid commands and redundant library instantiation
+
+                    if (!command || command.type === undefined || command.type === 'LIBRARY_OBJECT_INSTANTIATION') {
+
+                        return; // Skip invalid commands and redundant library instantiation (VAR_SET shows this better)
+
+                    }
+
+        
+
+                    // Forward relevant commands to the device
+
+                    if (['PIN_MODE', 'DIGITAL_WRITE', 'ANALOG_WRITE'].includes(command.type)) {
+
+                        sendWebSocketMessage({ type: 'remote_command', data: command });
+
+                    }
+
+                    
+
+                    const commandOutput = document.getElementById('commandOutput');
+
+                    const commandEl = document.createElement('div');
+
+                    commandEl.className = `command ${command.type}`;
+
+                    
+
+                    const time = command.timestamp ? new Date(command.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+                    let content = `<span class="timestamp">[${time}]</span> `;
+
+                    
+
+                    switch (command.type) {
+
+                        case 'PIN_MODE':
+
+                            // Display numeric values directly instead of symbolic names
+
+                            content += `pinMode(${command.pin}, ${command.mode})`;
+
+                            break;
+
+                        case 'DIGITAL_WRITE':
+
+                            // Display numeric values directly instead of symbolic names
+
+                            content += `digitalWrite(${command.pin}, ${command.value})`;
+
+                            break;
+
+                        case 'ANALOG_WRITE':
+
+                            content += `analogWrite(${command.pin}, ${command.value})`;
+
+                            break;
+
+                        case 'DIGITAL_READ':
+
+                            content += `digitalRead(${command.pin})`;
+
+                            break;
+
+                        case 'ANALOG_READ':
+
+                            content += `analogRead(${command.pin})`;
+
+                            break;
+
+                        case 'DELAY':
+
+                            content += `delay(${command.duration})`;
+
+                            break;
+
+                        case 'DELAY_MICROSECONDS':
+
+                            content += `delayMicroseconds(${command.duration})`;
+
+                            break;
+
+                        case 'VERSION_INFO':
+
+                            content += `🔢 ${command.component} v${command.version} (${command.status})`;
+
+                            break;
+
+                        case 'SETUP_START':
+
+                        case 'SETUP_END':
+
+                        case 'LOOP_START':
+
+                        case 'LOOP_END':
+
+                        case 'PROGRAM_START':
+
+                        case 'PROGRAM_END':
+
+                            content += `${command.message || command.type}`;
+
+                            break;
+
+                        case 'FUNCTION_CALL':
+
+                            if (command.function === 'loop') {
+
+                                if (command.completed) {
+
+                                    content += `✓ ${command.message}`;
+
+                                } else {
+
+                                    content += `▶ ${command.message}`;
+
+                                }
+
+                            } else {
+
+                                content += escapeForDisplay(command.message) || `${command.function}()`;
+
+                            }
+
+                            break;
+
+                        case 'CONDITION_EVAL':
+
+                            content += `🔍 ${command.message}`;
+
+                            break;
+
+                        case 'VAR_SET':
+
+                            // Improve object display formatting
+
+                            let displayValue = command.value;
+
+                            if (typeof displayValue === 'object' && displayValue !== null) {
+
+                                // Handle sanitized ArduinoObjects
+
+                                if (displayValue.__type === 'ArduinoObject') {
+
+                                    const args = displayValue.constructorArgs.length > 0 ? 
+
+                                        `(${displayValue.constructorArgs.join(', ')})` : '()';
+
+                                    displayValue = `🔧 ${displayValue.className}${args}`;
+
+                                } else if (displayValue.toString && displayValue.toString() !== '[object Object]') {
+
+                                    displayValue = displayValue.toString();
+
+                                } else if (displayValue.value !== undefined) {
+
+                                    displayValue = displayValue.value; // Extract value from ArduinoNumber, etc.
+
+                                } else {
+
+                                    displayValue = JSON.stringify(displayValue);
+
+                                }
+
+                            }
+
+                            content += `${command.variable} = ${displayValue}`;
+
+                            break;
+
+                        case 'IF_STATEMENT':
+
+                            content += `if (${command.condition}) ${command.result ? '✓' : '✗'} → ${command.branch} branch`;
+
+                            break;
+
+                        case 'SWITCH_STATEMENT':
+
+                            content += `${command.message}`;
+
+                            break;
+
+                        case 'SWITCH_CASE':
+
+                            content += `case ${command.caseValue}: ${command.matched ? '✓ matched' : '✗ skipped'}`;
+
+                            break;
+
+                        case 'FOR_LOOP':
+
+                            content += `${command.message}`;
+
+                            break;
+
+                        case 'WHILE_LOOP':
+
+                            content += `${command.message}`;
+
+                            break;
+
+                        case 'DO_WHILE_LOOP':
+
+                            content += `${command.message}`;
+
+                            break;
+
+                        case 'BREAK_STATEMENT':
+
+                            content += `${command.message}`;
+
+                            break;
+
+                        case 'CONTINUE_STATEMENT':
+
+                            content += `${command.message}`;
+
+                            break;
+
+                        case 'ERROR':
+
+                            content += command.severity === 'error' ? `❌ ERROR: ${command.message}` : `ERROR: ${command.message}`;
+
+                            break;
+
+                        case 'WARNING':
+
+                            content += command.severity === 'warning' ? `⚠️ WARNING: ${command.message}` : `⚠️ WARNING: ${command.message}`;
+
+                            break;
+
+                        case 'LIBRARY_STATIC_METHOD_CALL':
+
+                            const staticDisplayName = command.variableName || command.library;
+
+                            if (command.calculatedValue !== undefined) {
+
+                                content += `${staticDisplayName}.${command.method}(${command.args.join(', ')}) → ${command.calculatedValue}`;
+
+                            } else {
+
+                                content += `${staticDisplayName}.${command.method}(${command.args.join(', ')})`;
+
+                            }
+
+                            break;
+
+                        case 'LIBRARY_METHOD_CALL':
+
+                            const displayName = command.variableName || command.library;
+
+                            content += `${displayName}.${command.method}(${command.args.join(', ')})`;
+
+                            break;
+
+                        case 'LIBRARY_METHOD_INTERNAL':
+
+                            // Handle internal method with calculated result
+
+                            const internalDisplayName = command.variableName || command.library;
+
+                            content += `${internalDisplayName}.${command.method}(${command.args.join(', ')}) → ${command.result}`;
+
+                            break;
+
+                        case 'LIBRARY_METHOD_REQUEST':
+
+                            content += `⏳ Requesting ${command.library}.${command.method}()...`;
+
+                            break;
+
+                        case 'LIBRARY_OBJECT_INSTANTIATION':
+
+                            const objectDisplayName = command.variableName || command.library;
+
+                            const args = command.constructorArgs && command.constructorArgs.length > 0 ? 
+
+                                `(${command.constructorArgs.join(', ')})` : '()';
+
+                            content += `🔧 Creating ${command.library} ${objectDisplayName}${args}`;
+
+                            break;
+
+                        case 'ANALOG_READ_REQUEST':
+
+                            content += `analogRead(${command.pin})`;
+
+                            break;
+
+                        case 'DIGITAL_READ_REQUEST':
+
+                            content += `digitalRead(${command.pin})`;
+
+                            break;
+
+                        case 'MILLIS_REQUEST':
+
+                            content += `millis()`;
+
+                            break;
+
+                        case 'MICROS_REQUEST':
+
+                            content += `micros()`;
+
+                            break;
+
+                        case 'AVR_FUNCTION_CALL':
+
+                            content += `${command.function}(${command.args.join(', ')})`;
+
+                            break;
+
+                        default:
+
+                            // Handle VERSION_INFO with new clean format
+
+                            if (command.type === 'VERSION_INFO') {
+
+                                if (command.component === 'interpreter') {
+
+                                    content += `🤖 Arduino Interpreter v${command.version} ${command.status}`;
+
+                                } else if (command.component === 'parser') {
+
+                                    content += `📝 Using Parser v${command.version}`;
+
+                                }
+
+                            } else if (command.type === 'SWITCH_CASE') {
+
+                                content += `case ${command.caseValue}: ${command.matched ? '✓ matched' : '✗ skipped'}`;
+
+                            } else if (command.type === 'BREAK_STATEMENT' && command.action) {
+
+                                content += `break; ✓ ${command.action.replace('_', ' ')}`;
+
+                            } else if (command.type === 'IF_STATEMENT' && command.branch) {
+
+                                content += `if (${command.condition}) ${command.result ? '✓' : '✗'} → ${command.branch} branch`;
+
+                            } else {
+
+                                // Improved fallback handling - avoid JSON pollution
+
+                                if (command.message) {
+
+                                    content += command.message;
+
+                                } else if (command.type) {
+
+                                    content += `${command.type}`;
+
+                                } else {
+
+                                    // Last resort - but filter out truly unhelpful content
+
+                                    const jsonStr = JSON.stringify(command);
+
+                                    if (jsonStr && jsonStr !== '{}' && jsonStr !== 'null' && jsonStr !== 'undefined') {
+
+                                        content += jsonStr;
+
+                                    } else {
+
+                                        return; // Skip completely unhelpful commands
+
+                                    }
+
+                                }
+
+                            }
+
+                    }
+
+                    
+
+                    commandEl.innerHTML = content;
+
+                    // Add new commands at the top so latest is always visible
+
+                    commandOutput.insertBefore(commandEl, commandOutput.firstChild);
+
+                    
+
+                    // Update command counter
+
+                    const commandCount = commandOutput.children.length;
+
+                    document.getElementById('commandLineCounter').textContent = `${commandCount} commands`;
+
+                }
+
+                
+
+                function clearCommands() {
+
+                    document.getElementById('commandOutput').innerHTML = '';
+
+                    document.getElementById('commandLineCounter').textContent = '0 commands';
+
+                }
+
+                
+
+                function clearCode() {
+
+                    document.getElementById('codeEditor').value = '';
+
+                    updateLineCounters();
+
+                }
+
+        
+
+                function saveCode() {
+
+                    const code = document.getElementById('codeEditor').value;
+
+                    const sketchName = currentTestName || 'sketch.ino';
+
+                    const filename = sketchName.endsWith('.ino') ? sketchName : sketchName + '.ino';
+
+        
+
+                    const blob = new Blob([code], { type: 'text/plain' });
+
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+
+                    a.href = url;
+
+                    a.download = filename;
+
+                    a.style.display = 'none';
+
+                    document.body.appendChild(a);
+
+                    a.click();
+
+                    setTimeout(() => {
+
+                        document.body.removeChild(a);
+
+                        URL.revokeObjectURL(url);
+
+                    }, 100);
+
+                }
+
+        
+
+                function loadCode() {
+
+                    document.getElementById('fileLoader').click();
+
+                }
+
+        
+
+                function handleFileLoad(event) {
+
+                    const file = event.target.files[0];
+
+                    if (file) {
+
+                        const reader = new FileReader();
+
+                        reader.onload = (e) => {
+
+                            const content = e.target.result;
+
+                            document.getElementById('codeEditor').value = content;
+
+                            updateLineCounters();
+
+                            updateLineNumbers();
+
+                            currentTestName = file.name;
+
+                            updateSketchName();
+
+                        };
+
+                        reader.readAsText(file);
+
+                    }
+
+                }
+
+        
+
+                // Line number management
+
+                function updateLineNumbers() {
+
+                    const codeInput = document.getElementById('codeEditor');
+
+                    const lineNumbers = document.getElementById('lineNumbers');
+
+                    const lines = codeInput.value.split('\n');
+
+                    const lineCount = lines.length;
+
+                    
+
+                    let lineNumberText = '';
+
+                    for (let i = 1; i <= lineCount; i++) {
+
+                        lineNumberText += i + (i < lineCount ? '\n' : '');
+
+                    }
+
+                    lineNumbers.value = lineNumberText;
+
+                }
+
+                
+
+                // Synchronize scrolling between line numbers and code
+
+                function syncScroll() {
+
+                    const codeInput = document.getElementById('codeEditor');
+
+                    const lineNumbers = document.getElementById('lineNumbers');
+
+                    lineNumbers.scrollTop = codeInput.scrollTop;
+
+                }
+
+                
+
+                
+
+                
+
+                // No scroll management needed - browser handles it naturally
+
+                
+
+                // Event listeners
+
+                const codeEditor = document.getElementById('codeEditor');
+
+                codeEditor.addEventListener('input', () => {
+
+                    updateLineCounters();
+
+                    updateLineNumbers();
+
+                });
+
+                codeEditor.addEventListener('scroll', syncScroll);
+
+                
+
+                // Initialize
+
+                updateLineCounters();
+
+                updateLineNumbers();
+
+                updateStatus('IDLE', 0, 0, 0);
+
+                updateButtons('IDLE');
+
+                
+
+                // Load test files and initialize dropdowns
+
+                loadTestFiles();
+
+        
+
+                // Fetch status and disable upload if interpreter is not enabled
+
+                async function checkInterpreterStatus() {
+
+                    try {
+
+                        const response = await fetch('/api/status');
+
+                        const status = await response.json();
+
+                        if (status && status.interpreter === false) {
+
+                            const uploadBtn = document.getElementById('uploadASTBtn');
+
+                            uploadBtn.disabled = true;
+
+                            uploadBtn.title = 'Interpreter not enabled in firmware';
+
+                        }
+
+                    } catch (error) {
+
+                        console.error('Error fetching interpreter status:', error);
+
+                    }
+
+                }
+
+                checkInterpreterStatus();
+
+                connectWebSocket();
+
+                
+
+                // Note: Removed auto-execution - user must click Start button
+
+            </script>
+
+        </body>
+
+        </html>
